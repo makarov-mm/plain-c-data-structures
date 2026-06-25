@@ -2,158 +2,248 @@
 
 #include <stdlib.h>
 
-DoubleLinkedList* DoubleLinkedList_Create()
+DoubleLinkedList* DoubleLinkedList_Create(void)
 {
-	DoubleLinkedList* list = malloc(sizeof(DoubleLinkedList));
+    DoubleLinkedList* list = malloc(sizeof(*list));
 
-	if (!list)
-	{
-		return 0;
-	}
+    if (!list)
+    {
+        return NULL;
+    }
 
-	list->head = 0;
-	list->tail = 0;
+    list->head = NULL;
+    list->tail = NULL;
 
-	return list;
+    return list;
+}
+
+void DoubleLinkedList_Clear(DoubleLinkedList* list)
+{
+    if (!list)
+    {
+        return;
+    }
+
+    DoubleLinkedListNode* current = list->head;
+
+    while (current)
+    {
+        DoubleLinkedListNode* next = current->next;
+        free(current);
+        current = next;
+    }
+
+    list->head = NULL;
+    list->tail = NULL;
 }
 
 void DoubleLinkedList_Delete(DoubleLinkedList* list)
 {
-	if (!list || !list->head)
-	{
-		return;
-	}
+    if (!list)
+    {
+        return;
+    }
 
-	DoubleLinkedListNode* next;
-
-	do
-	{
-		next = list->head->next;
-		free(list->head);
-		list->head = next;
-	} while (list->head);
-
-	list->tail = 0;
+    DoubleLinkedList_Clear(list);
+    free(list);
 }
 
 void DoubleLinkedList_Foreach(DoubleLinkedList* list, void (*callback)(void* value))
 {
-	DoubleLinkedListNode* current = list->head;
+    if (!list || !callback)
+    {
+        return;
+    }
 
-	while (current)
-	{
-		callback(current->value);
-		current = current->next;
-	}
+    DoubleLinkedListNode* current = list->head;
+
+    while (current)
+    {
+        callback(current->value);
+        current = current->next;
+    }
 }
 
 void DoubleLinkedList_ForeachReverse(DoubleLinkedList* list, void (*callback)(void* value))
 {
-	DoubleLinkedListNode* current = list->tail;
+    if (!list || !callback)
+    {
+        return;
+    }
 
-	while (current)
-	{
-		callback(current->value);
-		current = current->prev;
-	}
+    DoubleLinkedListNode* current = list->tail;
+
+    while (current)
+    {
+        callback(current->value);
+        current = current->prev;
+    }
 }
 
 DoubleLinkedListNode* DoubleLinkedList_Add(DoubleLinkedList* list, void* value)
 {
-	DoubleLinkedListNode* node = malloc(sizeof(DoubleLinkedListNode));
+    if (!list)
+    {
+        return NULL;
+    }
 
-	if (!node)
-	{
-		return 0;
-	}
+    DoubleLinkedListNode* node = malloc(sizeof(*node));
 
-	node->next = 0;
-	node->value = value;
+    if (!node)
+    {
+        return NULL;
+    }
 
-	if (!list->tail)
-	{
-		list->head = list->tail = node;
-		node->prev = 0;
-	}
-	else
-	{
-		node->prev = list->tail;
-		list->tail->next = node;
-		list->tail = list->tail->next;
+    node->next = NULL;
+    node->prev = list->tail;
+    node->value = value;
 
-		if (!list->head->next)
-		{
-			list->head->next = list->tail;
-		}
-	}
+    if (!list->tail)
+    {
+        list->head = node;
+        list->tail = node;
+    }
+    else
+    {
+        list->tail->next = node;
+        list->tail = node;
+    }
 
-	return node;
+    return node;
+}
+
+DoubleLinkedListNode* DoubleLinkedList_AddFirst(DoubleLinkedList* list, void* value)
+{
+    if (!list)
+    {
+        return NULL;
+    }
+
+    DoubleLinkedListNode* node = malloc(sizeof(*node));
+
+    if (!node)
+    {
+        return NULL;
+    }
+
+    node->next = list->head;
+    node->prev = NULL;
+    node->value = value;
+
+    if (list->head)
+    {
+        list->head->prev = node;
+    }
+    else
+    {
+        list->tail = node;
+    }
+
+    list->head = node;
+
+    return node;
 }
 
 void* DoubleLinkedList_Remove(DoubleLinkedList* list)
 {
-	if (!list->tail || !list->head)
-	{
-		return 0;
-	}
+    if (!list || !list->tail)
+    {
+        return NULL;
+    }
 
-	void* value;
+    DoubleLinkedListNode* old_tail = list->tail;
+    void* value = old_tail->value;
 
-	if (!list->head->next)
-	{
-		value = list->head->value;
-		free(list->head);
-		list->head = 0;
-		list->tail = 0;
-		return value;
-	}
+    list->tail = old_tail->prev;
 
-	DoubleLinkedListNode* current = list->head;
+    if (list->tail)
+    {
+        list->tail->next = NULL;
+    }
+    else
+    {
+        list->head = NULL;
+    }
 
-	while (current->next != list->tail)
-	{
-		current = current->next;
-	}
-
-	value = list->tail->value;
-	free(list->tail);
-	current->next = 0;
-	list->tail = current;
-	return value;
+    free(old_tail);
+    return value;
 }
 
-DoubleLinkedListNode* DoubleLinkedList_InsertAt(DoubleLinkedListNode* target, void* value)
+void* DoubleLinkedList_RemoveFirst(DoubleLinkedList* list)
 {
-	DoubleLinkedListNode* node = malloc(sizeof(DoubleLinkedListNode));
+    if (!list || !list->head)
+    {
+        return NULL;
+    }
 
-	if (!node)
-	{
-		return 0;
-	}
+    DoubleLinkedListNode* old_head = list->head;
+    void* value = old_head->value;
 
-	node->next = target->next;
-	node->prev = target;
-	node->value = value;
+    list->head = old_head->next;
 
-	if (target->next)
-	{
-		target->next->prev = node;
-	}
+    if (list->head)
+    {
+        list->head->prev = NULL;
+    }
+    else
+    {
+        list->tail = NULL;
+    }
 
-	target->next = node;
-	return node;
+    free(old_head);
+    return value;
 }
 
-int DoubleLinkedList_Count(DoubleLinkedList* list)
+DoubleLinkedListNode* DoubleLinkedList_InsertAfter(
+    DoubleLinkedList* list,
+    DoubleLinkedListNode* target,
+    void* value)
 {
-	int count = 0;
-	DoubleLinkedListNode* current = list->head;
+    if (!list || !target)
+    {
+        return NULL;
+    }
 
-	while (current)
-	{
-		++count;
-		current = current->next;
-	}
+    DoubleLinkedListNode* node = malloc(sizeof(*node));
 
-	return count;
+    if (!node)
+    {
+        return NULL;
+    }
+
+    node->next = target->next;
+    node->prev = target;
+    node->value = value;
+
+    if (target->next)
+    {
+        target->next->prev = node;
+    }
+    else
+    {
+        list->tail = node;
+    }
+
+    target->next = node;
+
+    return node;
+}
+
+size_t DoubleLinkedList_Count(const DoubleLinkedList* list)
+{
+    if (!list)
+    {
+        return 0;
+    }
+
+    size_t count = 0;
+    const DoubleLinkedListNode* current = list->head;
+
+    while (current)
+    {
+        ++count;
+        current = current->next;
+    }
+
+    return count;
 }

@@ -2,138 +2,175 @@
 
 #include <stdlib.h>
 
-SingleLinkedList* SingleLinkedList_Create()
+SingleLinkedList* SingleLinkedList_Create(void)
 {
-	SingleLinkedList* list = malloc(sizeof(SingleLinkedList));
+    SingleLinkedList* list = malloc(sizeof(*list));
 
-	if (!list)
-	{
-		return 0;
-	}
-	
-	list->head = 0;
-	list->tail = 0;
+    if (!list)
+    {
+        return NULL;
+    }
 
-	return list;
+    list->head = NULL;
+    list->tail = NULL;
+
+    return list;
+}
+
+void SingleLinkedList_Clear(SingleLinkedList* list)
+{
+    if (!list)
+    {
+        return;
+    }
+
+    SingleLinkedListNode* current = list->head;
+
+    while (current)
+    {
+        SingleLinkedListNode* next = current->next;
+        free(current);
+        current = next;
+    }
+
+    list->head = NULL;
+    list->tail = NULL;
 }
 
 void SingleLinkedList_Delete(SingleLinkedList* list)
 {
-	if (!list || !list->head)
-	{
-		return;
-	}
+    if (!list)
+    {
+        return;
+    }
 
-	SingleLinkedListNode* next;
-
-	do
-	{
-		next = list->head->next;
-		free(list->head);
-		list->head = next;
-	} while (list->head);
-
-	list->tail = 0;
+    SingleLinkedList_Clear(list);
+    free(list);
 }
 
 void SingleLinkedList_Foreach(SingleLinkedList* list, void (*callback)(void* value))
 {
-	SingleLinkedListNode* current = list->head;
+    if (!list || !callback)
+    {
+        return;
+    }
 
-	while (current)
-	{
-		callback(current->value);
-		current = current->next;
-	}
+    SingleLinkedListNode* current = list->head;
+
+    while (current)
+    {
+        callback(current->value);
+        current = current->next;
+    }
 }
 
 SingleLinkedListNode* SingleLinkedList_Add(SingleLinkedList* list, void* value)
 {
-	SingleLinkedListNode* node = malloc(sizeof(SingleLinkedListNode));
+    if (!list)
+    {
+        return NULL;
+    }
 
-	if (!node)
-	{
-		return 0;
-	}
+    SingleLinkedListNode* node = malloc(sizeof(*node));
 
-	node->next = 0;
-	node->value = value;
+    if (!node)
+    {
+        return NULL;
+    }
 
-	if (!list->tail)
-	{
-		list->head = list->tail = node;
-	}
-	else
-	{
-		list->tail->next = node;
-		list->tail = list->tail->next;
+    node->next = NULL;
+    node->value = value;
 
-		if (!list->head->next)
-		{
-			list->head->next = list->tail;
-		}
-	}
+    if (!list->tail)
+    {
+        list->head = node;
+        list->tail = node;
+    }
+    else
+    {
+        list->tail->next = node;
+        list->tail = node;
+    }
 
-	return node;
+    return node;
 }
 
 void* SingleLinkedList_Remove(SingleLinkedList* list)
 {
-	if (!list->tail || !list->head)
-	{
-		return 0;
-	}
+    if (!list || !list->tail)
+    {
+        return NULL;
+    }
 
-	void* value;
+    SingleLinkedListNode* old_tail = list->tail;
+    void* value = old_tail->value;
 
-	if (!list->head->next)
-	{
-		value = list->head->value;
-		free(list->head);
-		list->head = 0;
-		list->tail = 0;
-		return value;
-	}
+    if (list->head == list->tail)
+    {
+        list->head = NULL;
+        list->tail = NULL;
+    }
+    else
+    {
+        SingleLinkedListNode* current = list->head;
 
-	SingleLinkedListNode* current = list->head;
+        while (current->next != list->tail)
+        {
+            current = current->next;
+        }
 
-	while (current->next != list->tail)
-	{
-		current = current->next;
-	}
+        current->next = NULL;
+        list->tail = current;
+    }
 
-	value = list->tail->value;
-	free(list->tail);
-	current->next = 0;
-	list->tail = current;
-	return value;
+    free(old_tail);
+    return value;
 }
 
-SingleLinkedListNode* SingleLinkedList_InsertAt(SingleLinkedListNode* target, void* value)
+SingleLinkedListNode* SingleLinkedList_InsertAfter(
+    SingleLinkedList* list,
+    SingleLinkedListNode* target,
+    void* value)
 {
-	SingleLinkedListNode* node = malloc(sizeof(SingleLinkedListNode));
+    if (!list || !target)
+    {
+        return NULL;
+    }
 
-	if (!node)
-	{
-		return 0;
-	}
+    SingleLinkedListNode* node = malloc(sizeof(*node));
 
-	node->next = target->next;
-	node->value = value;
-	target->next = node;
-	return node;
+    if (!node)
+    {
+        return NULL;
+    }
+
+    node->next = target->next;
+    node->value = value;
+    target->next = node;
+
+    if (list->tail == target)
+    {
+        list->tail = node;
+    }
+
+    return node;
 }
 
-int SingleLinkedList_Count(SingleLinkedList* list)
+size_t SingleLinkedList_Count(const SingleLinkedList* list)
 {
-	int count = 0;
-	SingleLinkedListNode* current = list->head;
+    if (!list)
+    {
+        return 0;
+    }
 
-	while (current)
-	{
-		++count;
-		current = current->next;
-	}
+    size_t count = 0;
+    const SingleLinkedListNode* current = list->head;
 
-	return count;
+    while (current)
+    {
+        ++count;
+        current = current->next;
+    }
+
+    return count;
 }
