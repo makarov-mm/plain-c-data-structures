@@ -10,11 +10,12 @@
 static size_t HashMap_Hash(const char* key)
 {
     size_t hash = 5381;
-    int c;
+    const unsigned char* bytes = (const unsigned char*)key;
+    unsigned char c;
 
-    while ((c = *key++) != 0)
+    while ((c = *bytes++) != 0)
     {
-        hash = ((hash << 5) + hash) + (size_t)c;
+        hash = ((hash << 5) + hash) + c;
     }
 
     return hash;
@@ -153,7 +154,7 @@ void HashMap_Delete(HashMap* map)
 
 int HashMap_Put(HashMap* map, const char* key, void* value)
 {
-    if (!map || !key || !HashMap_EnsureCapacity(map))
+    if (!map || !key)
     {
         return 0;
     }
@@ -171,6 +172,13 @@ int HashMap_Put(HashMap* map, const char* key, void* value)
 
         entry = entry->next;
     }
+
+    if (!HashMap_EnsureCapacity(map))
+    {
+        return 0;
+    }
+
+    index = HashMap_Hash(key) % map->bucket_count;
 
     HashMapEntry* new_entry = HashMap_CreateEntry(key, value);
 

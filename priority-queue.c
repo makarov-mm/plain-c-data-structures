@@ -1,5 +1,6 @@
 #include "priority-queue.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 
 #define PRIORITY_QUEUE_DEFAULT_CAPACITY 4
@@ -16,10 +17,23 @@ static int PriorityQueue_EnsureCapacity(PriorityQueue* queue, size_t required_ca
         return 1;
     }
 
+    size_t max_capacity = SIZE_MAX / sizeof(*queue->items);
+
+    if (required_capacity > max_capacity)
+    {
+        return 0;
+    }
+
     size_t new_capacity = queue->capacity ? queue->capacity : PRIORITY_QUEUE_DEFAULT_CAPACITY;
 
     while (new_capacity < required_capacity)
     {
+        if (new_capacity > max_capacity / 2)
+        {
+            new_capacity = required_capacity;
+            break;
+        }
+
         new_capacity *= 2;
     }
 

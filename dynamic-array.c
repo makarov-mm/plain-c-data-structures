@@ -1,5 +1,6 @@
 #include "dynamic-array.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 
 #define DYNAMIC_ARRAY_DEFAULT_CAPACITY 4
@@ -16,10 +17,23 @@ static int DynamicArray_EnsureCapacity(DynamicArray* array, size_t required_capa
         return 1;
     }
 
+    size_t max_capacity = SIZE_MAX / sizeof(*array->items);
+
+    if (required_capacity > max_capacity)
+    {
+        return 0;
+    }
+
     size_t new_capacity = array->capacity ? array->capacity : DYNAMIC_ARRAY_DEFAULT_CAPACITY;
 
     while (new_capacity < required_capacity)
     {
+        if (new_capacity > max_capacity / 2)
+        {
+            new_capacity = required_capacity;
+            break;
+        }
+
         new_capacity *= 2;
     }
 
