@@ -367,3 +367,9 @@ The API is intentionally small and plain. It avoids ownership callbacks, custom 
 The previous `InsertAt(node, value)` API was replaced with `InsertAfter(list, node, value)`. The list argument is required to preserve the `tail` invariant when inserting after the current tail.
 
 For production use, you would normally add more explicit ownership rules, better error reporting, more removal operations, and probably typed wrappers or macros. For a compact C data-structures library, this version keeps the old style but fixes the most obvious correctness issues.
+
+## Support
+
+If you found this project interesting or useful, you can support my work:
+
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/makarov-mm?style=flat&logo=github)](https://github.com/sponsors/makarov-mm)
