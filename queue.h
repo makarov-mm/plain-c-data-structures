@@ -1,19 +1,24 @@
-#ifndef QUEUE
-#define QUEUE
+#pragma once
 
 #include <stddef.h>
+
 #include "double-linked-list.h"
 
-typedef struct Queue {
-    struct DoubleLinkedList* list;
+// FIFO container over a doubly linked list; every operation is O(1).
+typedef struct Queue
+{
+    DoubleLinkedList list;
 } Queue;
 
-extern Queue* Queue_Create(void);
-extern void Queue_Delete(Queue* queue);
+[[nodiscard]] Queue* Queue_Create(void);
+void Queue_Clear(Queue* queue);
+void Queue_Delete(Queue* queue);
 
-extern void Queue_Enqueue(Queue* queue, void* value);
-extern void* Queue_Dequeue(Queue* queue);
+// Returns false if the node could not be allocated.
+bool Queue_Enqueue(Queue* queue, void* value);
+// Removes and returns the oldest value (nullptr when empty).
+void* Queue_Dequeue(Queue* queue);
+// The oldest value without removing it (nullptr when empty).
+void* Queue_Peek(const Queue* queue);
 
-extern size_t Queue_Count(const Queue* queue);
-
-#endif
+size_t Queue_Count(const Queue* queue);

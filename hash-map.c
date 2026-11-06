@@ -3,47 +3,48 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define HASH_MAP_DEFAULT_BUCKET_COUNT 16
-#define HASH_MAP_MAX_LOAD_NUMERATOR 3
-#define HASH_MAP_MAX_LOAD_DENOMINATOR 4
+enum
+{
+    kDefaultBucketCount = 16,
+    // Rehash into twice the buckets once there are more than 3 entries per 4 buckets.
+    kMaxLoadNumerator = 3,
+    kMaxLoadDenominator = 4,
+};
 
-static size_t HashMap_Hash(const char* key)
+// djb2
+static size_t Hash(const char* key)
 {
     size_t hash = 5381;
-    const unsigned char* bytes = (const unsigned char*)key;
-    unsigned char c;
 
-    while ((c = *bytes++) != 0)
+    for (const unsigned char* c = (const unsigned char*)key; *c; ++c)
     {
-        hash = ((hash << 5) + hash) + c;
+        hash = hash * 33 + *c;
     }
 
     return hash;
 }
 
-static HashMapEntry* HashMap_CreateEntry(const char* key, void* value)
+// The link (bucket head or an entry's `next`) that points at the key's
+// entry, or at the end of its chain when the key is absent.
+static HashMapEntry** FindLink(const HashMap* map, const char* key, size_t hash)
 {
-    HashMapEntry* entry = malloc(sizeof(*entry));
+    HashMapEntry** link = &map->buckets[hash % map->bucket_count];
 
-    if (!entry)
+    while (*link && ((*link)->hash != hash || strcmp((*link)->key, key) != 0))
     {
-        return NULL;
+        link = &(*link)->next;
     }
 
-    entry->key = key;
-    entry->value = value;
-    entry->next = NULL;
-
-    return entry;
+    return link;
 }
 
-static int HashMap_Rehash(HashMap* map, size_t new_bucket_count)
+static bool Rehash(HashMap* map, size_t bucket_count)
 {
-    HashMapEntry** new_buckets = calloc(new_bucket_count, sizeof(*new_buckets));
+    HashMapEntry** buckets = calloc(bucket_count, sizeof(*buckets));
 
-    if (!new_buckets)
+    if (!buckets)
     {
-        return 0;
+        return false;
     }
 
     for (size_t i = 0; i < map->bucket_count; ++i)
@@ -53,65 +54,46 @@ static int HashMap_Rehash(HashMap* map, size_t new_bucket_count)
         while (entry)
         {
             HashMapEntry* next = entry->next;
-            size_t new_index = HashMap_Hash(entry->key) % new_bucket_count;
-            entry->next = new_buckets[new_index];
-            new_buckets[new_index] = entry;
+            HashMapEntry** bucket = &buckets[entry->hash % bucket_count];
+            entry->next = *bucket;
+            *bucket = entry;
             entry = next;
         }
     }
 
     free(map->buckets);
-    map->buckets = new_buckets;
-    map->bucket_count = new_bucket_count;
+    map->buckets = buckets;
+    map->bucket_count = bucket_count;
 
-    return 1;
-}
-
-static int HashMap_EnsureCapacity(HashMap* map)
-{
-    if (!map)
-    {
-        return 0;
-    }
-
-    if ((map->count + 1) * HASH_MAP_MAX_LOAD_DENOMINATOR <=
-        map->bucket_count * HASH_MAP_MAX_LOAD_NUMERATOR)
-    {
-        return 1;
-    }
-
-    return HashMap_Rehash(map, map->bucket_count * 2);
+    return true;
 }
 
 HashMap* HashMap_Create(void)
 {
-    return HashMap_CreateWithBucketCount(HASH_MAP_DEFAULT_BUCKET_COUNT);
+    return HashMap_CreateWithBucketCount(kDefaultBucketCount);
 }
 
 HashMap* HashMap_CreateWithBucketCount(size_t bucket_count)
 {
     if (bucket_count == 0)
     {
-        bucket_count = HASH_MAP_DEFAULT_BUCKET_COUNT;
+        bucket_count = kDefaultBucketCount;
     }
 
     HashMap* map = malloc(sizeof(*map));
 
     if (!map)
     {
-        return NULL;
+        return nullptr;
     }
 
-    map->buckets = calloc(bucket_count, sizeof(*map->buckets));
+    *map = (HashMap){.buckets = calloc(bucket_count, sizeof(*map->buckets)), .bucket_count = bucket_count};
 
     if (!map->buckets)
     {
         free(map);
-        return NULL;
+        return nullptr;
     }
-
-    map->bucket_count = bucket_count;
-    map->count = 0;
 
     return map;
 }
@@ -134,7 +116,7 @@ void HashMap_Clear(HashMap* map)
             entry = next;
         }
 
-        map->buckets[i] = NULL;
+        map->buckets[i] = nullptr;
     }
 
     map->count = 0;
@@ -142,148 +124,108 @@ void HashMap_Clear(HashMap* map)
 
 void HashMap_Delete(HashMap* map)
 {
-    if (!map)
+    if (map)
     {
-        return;
+        HashMap_Clear(map);
+        free(map->buckets);
+        free(map);
     }
-
-    HashMap_Clear(map);
-    free(map->buckets);
-    free(map);
 }
 
-int HashMap_Put(HashMap* map, const char* key, void* value)
+bool HashMap_Put(HashMap* map, const char* key, void* value)
 {
     if (!map || !key)
     {
-        return 0;
+        return false;
     }
 
-    size_t index = HashMap_Hash(key) % map->bucket_count;
-    HashMapEntry* entry = map->buckets[index];
+    size_t hash = Hash(key);
+    HashMapEntry* existing = *FindLink(map, key, hash);
 
-    while (entry)
+    if (existing)
     {
-        if (strcmp(entry->key, key) == 0)
-        {
-            entry->value = value;
-            return 1;
-        }
-
-        entry = entry->next;
+        existing->value = value;
+        return true;
     }
 
-    if (!HashMap_EnsureCapacity(map))
+    if ((map->count + 1) * kMaxLoadDenominator > map->bucket_count * kMaxLoadNumerator &&
+        !Rehash(map, map->bucket_count * 2))
     {
-        return 0;
+        return false;
     }
 
-    index = HashMap_Hash(key) % map->bucket_count;
+    HashMapEntry* entry = malloc(sizeof(*entry));
 
-    HashMapEntry* new_entry = HashMap_CreateEntry(key, value);
-
-    if (!new_entry)
+    if (!entry)
     {
-        return 0;
+        return false;
     }
 
-    new_entry->next = map->buckets[index];
-    map->buckets[index] = new_entry;
+    HashMapEntry** bucket = &map->buckets[hash % map->bucket_count];
+    *entry = (HashMapEntry){.key = key, .value = value, .hash = hash, .next = *bucket};
+    *bucket = entry;
     ++map->count;
 
-    return 1;
+    return true;
 }
 
 void* HashMap_Get(const HashMap* map, const char* key)
 {
     if (!map || !key)
     {
-        return NULL;
+        return nullptr;
     }
 
-    size_t index = HashMap_Hash(key) % map->bucket_count;
-    HashMapEntry* entry = map->buckets[index];
+    HashMapEntry* entry = *FindLink(map, key, Hash(key));
 
-    while (entry)
-    {
-        if (strcmp(entry->key, key) == 0)
-        {
-            return entry->value;
-        }
-
-        entry = entry->next;
-    }
-
-    return NULL;
+    return entry ? entry->value : nullptr;
 }
 
-int HashMap_ContainsKey(const HashMap* map, const char* key)
+bool HashMap_ContainsKey(const HashMap* map, const char* key)
 {
-    if (!map || !key)
-    {
-        return 0;
-    }
-
-    size_t index = HashMap_Hash(key) % map->bucket_count;
-    HashMapEntry* entry = map->buckets[index];
-
-    while (entry)
-    {
-        if (strcmp(entry->key, key) == 0)
-        {
-            return 1;
-        }
-
-        entry = entry->next;
-    }
-
-    return 0;
+    return map && key && *FindLink(map, key, Hash(key)) != nullptr;
 }
 
 void* HashMap_Remove(HashMap* map, const char* key)
 {
     if (!map || !key)
     {
-        return NULL;
+        return nullptr;
     }
 
-    size_t index = HashMap_Hash(key) % map->bucket_count;
-    HashMapEntry* entry = map->buckets[index];
-    HashMapEntry* previous = NULL;
+    HashMapEntry** link = FindLink(map, key, Hash(key));
+    HashMapEntry* entry = *link;
 
-    while (entry)
+    if (!entry)
     {
-        if (strcmp(entry->key, key) == 0)
-        {
-            void* value = entry->value;
-
-            if (previous)
-            {
-                previous->next = entry->next;
-            }
-            else
-            {
-                map->buckets[index] = entry->next;
-            }
-
-            free(entry);
-            --map->count;
-            return value;
-        }
-
-        previous = entry;
-        entry = entry->next;
+        return nullptr;
     }
 
-    return NULL;
+    void* value = entry->value;
+    *link = entry->next;
+    free(entry);
+    --map->count;
+
+    return value;
+}
+
+void HashMap_Foreach(const HashMap* map, HashMapCallback callback, void* context)
+{
+    if (!map || !callback)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < map->bucket_count; ++i)
+    {
+        for (HashMapEntry* entry = map->buckets[i]; entry; entry = entry->next)
+        {
+            callback(entry->key, entry->value, context);
+        }
+    }
 }
 
 size_t HashMap_Count(const HashMap* map)
 {
-    if (!map)
-    {
-        return 0;
-    }
-
-    return map->count;
+    return map ? map->count : 0;
 }

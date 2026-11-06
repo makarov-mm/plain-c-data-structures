@@ -1,136 +1,84 @@
 #include "priority-queue.h"
 
-#include <stdint.h>
 #include <stdlib.h>
 
-#define PRIORITY_QUEUE_DEFAULT_CAPACITY 4
+#include "capacity.h"
 
-static int PriorityQueue_EnsureCapacity(PriorityQueue* queue, size_t required_capacity)
-{
-    if (!queue)
-    {
-        return 0;
-    }
+enum { kDefaultCapacity = 4 };
 
-    if (queue->capacity >= required_capacity)
-    {
-        return 1;
-    }
-
-    size_t max_capacity = SIZE_MAX / sizeof(*queue->items);
-
-    if (required_capacity > max_capacity)
-    {
-        return 0;
-    }
-
-    size_t new_capacity = queue->capacity ? queue->capacity : PRIORITY_QUEUE_DEFAULT_CAPACITY;
-
-    while (new_capacity < required_capacity)
-    {
-        if (new_capacity > max_capacity / 2)
-        {
-            new_capacity = required_capacity;
-            break;
-        }
-
-        new_capacity *= 2;
-    }
-
-    void** new_items = realloc(queue->items, new_capacity * sizeof(*new_items));
-
-    if (!new_items)
-    {
-        return 0;
-    }
-
-    queue->items = new_items;
-    queue->capacity = new_capacity;
-
-    return 1;
-}
-
-static void PriorityQueue_Swap(void** left, void** right)
-{
-    void* temporary = *left;
-    *left = *right;
-    *right = temporary;
-}
-
-static void PriorityQueue_SiftUp(PriorityQueue* queue, size_t index)
+// Moves the hole at `index` up until `value` fits, then drops it in.
+static void SiftUp(PriorityQueue* queue, size_t index, void* value)
 {
     while (index > 0)
     {
-        size_t parent_index = (index - 1) / 2;
+        size_t parent = (index - 1) / 2;
 
-        if (queue->compare(queue->items[index], queue->items[parent_index]) >= 0)
+        if (queue->compare(value, queue->items[parent]) >= 0)
         {
             break;
         }
 
-        PriorityQueue_Swap(&queue->items[index], &queue->items[parent_index]);
-        index = parent_index;
+        queue->items[index] = queue->items[parent];
+        index = parent;
     }
+
+    queue->items[index] = value;
 }
 
-static void PriorityQueue_SiftDown(PriorityQueue* queue, size_t index)
+// Moves the hole at `index` down until `value` fits, then drops it in.
+static void SiftDown(PriorityQueue* queue, size_t index, void* value)
 {
     for (;;)
     {
-        size_t left_child_index = index * 2 + 1;
-        size_t right_child_index = index * 2 + 2;
-        size_t smallest_index = index;
+        size_t child = index * 2 + 1;
 
-        if (left_child_index < queue->count &&
-            queue->compare(queue->items[left_child_index], queue->items[smallest_index]) < 0)
-        {
-            smallest_index = left_child_index;
-        }
-
-        if (right_child_index < queue->count &&
-            queue->compare(queue->items[right_child_index], queue->items[smallest_index]) < 0)
-        {
-            smallest_index = right_child_index;
-        }
-
-        if (smallest_index == index)
+        if (child >= queue->count)
         {
             break;
         }
 
-        PriorityQueue_Swap(&queue->items[index], &queue->items[smallest_index]);
-        index = smallest_index;
+        if (child + 1 < queue->count && queue->compare(queue->items[child + 1], queue->items[child]) < 0)
+        {
+            ++child;
+        }
+
+        if (queue->compare(queue->items[child], value) >= 0)
+        {
+            break;
+        }
+
+        queue->items[index] = queue->items[child];
+        index = child;
     }
+
+    queue->items[index] = value;
 }
 
 PriorityQueue* PriorityQueue_Create(PriorityQueueCompare compare)
 {
-    return PriorityQueue_CreateWithCapacity(compare, PRIORITY_QUEUE_DEFAULT_CAPACITY);
+    return PriorityQueue_CreateWithCapacity(compare, kDefaultCapacity);
 }
 
 PriorityQueue* PriorityQueue_CreateWithCapacity(PriorityQueueCompare compare, size_t capacity)
 {
     if (!compare)
     {
-        return NULL;
+        return nullptr;
     }
 
     PriorityQueue* queue = malloc(sizeof(*queue));
 
     if (!queue)
     {
-        return NULL;
+        return nullptr;
     }
 
-    queue->items = NULL;
-    queue->compare = compare;
-    queue->count = 0;
-    queue->capacity = 0;
+    *queue = (PriorityQueue){.compare = compare};
 
-    if (capacity && !PriorityQueue_EnsureCapacity(queue, capacity))
+    if (!PriorityQueue_Reserve(queue, capacity))
     {
         free(queue);
-        return NULL;
+        return nullptr;
     }
 
     return queue;
@@ -138,54 +86,48 @@ PriorityQueue* PriorityQueue_CreateWithCapacity(PriorityQueueCompare compare, si
 
 void PriorityQueue_Clear(PriorityQueue* queue)
 {
-    if (!queue)
+    if (queue)
     {
-        return;
+        queue->count = 0;
     }
-
-    queue->count = 0;
 }
 
 void PriorityQueue_Delete(PriorityQueue* queue)
 {
-    if (!queue)
+    if (queue)
     {
-        return;
+        free(queue->items);
+        free(queue);
     }
-
-    free(queue->items);
-    free(queue);
 }
 
-int PriorityQueue_Enqueue(PriorityQueue* queue, void* value)
+bool PriorityQueue_Reserve(PriorityQueue* queue, size_t capacity)
 {
-    if (!queue || !PriorityQueue_EnsureCapacity(queue, queue->count + 1))
+    return queue && GrowPointerArray(&queue->items, &queue->capacity, capacity, kDefaultCapacity);
+}
+
+bool PriorityQueue_Enqueue(PriorityQueue* queue, void* value)
+{
+    if (!queue || !PriorityQueue_Reserve(queue, queue->count + 1))
     {
-        return 0;
+        return false;
     }
 
-    queue->items[queue->count] = value;
-    PriorityQueue_SiftUp(queue, queue->count);
-    ++queue->count;
+    SiftUp(queue, queue->count++, value);
 
-    return 1;
+    return true;
 }
 
 void* PriorityQueue_Peek(const PriorityQueue* queue)
 {
-    if (!queue || queue->count == 0)
-    {
-        return NULL;
-    }
-
-    return queue->items[0];
+    return queue && queue->count ? queue->items[0] : nullptr;
 }
 
 void* PriorityQueue_Dequeue(PriorityQueue* queue)
 {
     if (!queue || queue->count == 0)
     {
-        return NULL;
+        return nullptr;
     }
 
     void* value = queue->items[0];
@@ -193,8 +135,7 @@ void* PriorityQueue_Dequeue(PriorityQueue* queue)
 
     if (queue->count > 0)
     {
-        queue->items[0] = queue->items[queue->count];
-        PriorityQueue_SiftDown(queue, 0);
+        SiftDown(queue, 0, queue->items[queue->count]);
     }
 
     return value;
@@ -202,20 +143,10 @@ void* PriorityQueue_Dequeue(PriorityQueue* queue)
 
 size_t PriorityQueue_Count(const PriorityQueue* queue)
 {
-    if (!queue)
-    {
-        return 0;
-    }
-
-    return queue->count;
+    return queue ? queue->count : 0;
 }
 
 size_t PriorityQueue_Capacity(const PriorityQueue* queue)
 {
-    if (!queue)
-    {
-        return 0;
-    }
-
-    return queue->capacity;
+    return queue ? queue->capacity : 0;
 }

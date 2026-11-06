@@ -1,19 +1,24 @@
-#ifndef STACK
-#define STACK
+#pragma once
 
 #include <stddef.h>
+
 #include "double-linked-list.h"
 
-typedef struct Stack {
-    struct DoubleLinkedList* list;
+// LIFO container over a doubly linked list; every operation is O(1).
+typedef struct Stack
+{
+    DoubleLinkedList list;
 } Stack;
 
-extern Stack* Stack_Create(void);
-extern void Stack_Delete(Stack* stack);
+[[nodiscard]] Stack* Stack_Create(void);
+void Stack_Clear(Stack* stack);
+void Stack_Delete(Stack* stack);
 
-extern void Stack_Push(Stack* stack, void* value);
-extern void* Stack_Pop(Stack* stack);
+// Returns false if the node could not be allocated.
+bool Stack_Push(Stack* stack, void* value);
+// Removes and returns the top value (nullptr when empty).
+void* Stack_Pop(Stack* stack);
+// The top value without removing it (nullptr when empty).
+void* Stack_Peek(const Stack* stack);
 
-extern size_t Stack_Count(const Stack* stack);
-
-#endif
+size_t Stack_Count(const Stack* stack);

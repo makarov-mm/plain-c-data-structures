@@ -1,6 +1,6 @@
 # Plain C Data Structures
 
-A small plain C collection of generic data structures based on `void*` values.
+A small plain C (C23) collection of generic data structures based on `void*` values.
 
 Included containers:
 
@@ -18,17 +18,21 @@ The containers own and free only their internal nodes, entries, arrays, and tree
 
 `HashMap` also does not copy or free string keys. The key pointer must remain valid while the entry exists in the map.
 
+Every function tolerates a null container (it returns `nullptr`, `false` or `0`), so error handling can be deferred to the end of a sequence of calls. Functions that allocate return `false` or `nullptr` when memory runs out and leave the container unchanged.
+
 ## Build
 
+Requires a C23 compiler: GCC 14+ or Clang 18+ (`-std=c23`; GCC 13 accepts the same code as `-std=c2x`), MSVC with `/std:clatest`.
+
 ```sh
-gcc -std=c11 -Wall -Wextra -Wpedantic -c *.c
+make            # builds libplaincds.a
+make clean
 ```
 
-Or use the included Makefile:
+Or compile the sources straight into your project:
 
 ```sh
-make
-make test
+gcc -std=c23 -O2 -Wall -Wextra -Wpedantic -c *.c
 ```
 
 ## Single Linked List
@@ -40,11 +44,13 @@ SingleLinkedList* list = SingleLinkedList_Create();
 SingleLinkedList_Delete(list);
 ```
 
-Add and remove elements at/from the tail:
+Add at either end, remove from either end:
 
 ```c
-SingleLinkedList_Add(list, &a);
-void* value = SingleLinkedList_Remove(list);
+SingleLinkedList_Add(list, &a);                   // tail, O(1)
+SingleLinkedList_AddFirst(list, &b);              // head, O(1)
+void* first = SingleLinkedList_RemoveFirst(list); // head, O(1)
+void* last = SingleLinkedList_Remove(list);       // tail, O(n) - a singly linked list has to find the node before the tail
 ```
 
 Insert after a known node:
@@ -62,19 +68,19 @@ SingleLinkedList_InsertAfter(list, first, &c); // result: 1, 3, 2
 SingleLinkedList_Delete(list);
 ```
 
-Iterate over a list:
+Iterate over a list. Callbacks get the `context` pointer you pass in, so there is no need for globals:
 
 ```c
-void callback(void* value)
+void add_to_sum(void* value, void* context)
 {
-    int integer = *((int*)value);
-    printf("%d\n", integer);
+    *(int*)context += *(int*)value;
 }
 
-SingleLinkedList_Foreach(list, callback);
+int sum = 0;
+SingleLinkedList_Foreach(list, add_to_sum, &sum);
 ```
 
-Count elements:
+Count elements (O(1), the count is maintained):
 
 ```c
 size_t count = SingleLinkedList_Count(list);
@@ -109,24 +115,31 @@ DoubleLinkedList_AddFirst(list, &a);
 void* value = DoubleLinkedList_RemoveFirst(list);
 ```
 
-`DoubleLinkedList_Remove` and `DoubleLinkedList_RemoveFirst` both work in `O(1)` time.
+Look at either end without removing, or remove any node you hold:
 
-Insert after a known node:
+```c
+void* first = DoubleLinkedList_First(list);
+void* last = DoubleLinkedList_Last(list);
+void* value = DoubleLinkedList_RemoveNode(list, node);
+```
+
+Insert next to a known node:
 
 ```c
 DoubleLinkedListNode* first = DoubleLinkedList_Add(list, &a);
 DoubleLinkedList_Add(list, &b);
-DoubleLinkedList_InsertAfter(list, first, &c); // result: 1, 3, 2
+DoubleLinkedList_InsertAfter(list, first, &c);  // result: 1, 3, 2
+DoubleLinkedList_InsertBefore(list, first, &d); // result: 4, 1, 3, 2
 ```
 
-Iterate forward and backward:
+All of the above are O(1). Iterate forward and backward:
 
 ```c
-DoubleLinkedList_Foreach(list, callback);
-DoubleLinkedList_ForeachReverse(list, callback);
+DoubleLinkedList_Foreach(list, callback, context);
+DoubleLinkedList_ForeachReverse(list, callback, context);
 ```
 
-Count elements:
+Count elements (O(1)):
 
 ```c
 size_t count = DoubleLinkedList_Count(list);
@@ -138,9 +151,11 @@ Clear nodes without deleting the list object:
 DoubleLinkedList_Clear(list);
 ```
 
+A list can also live inside another struct; `DoubleLinkedList_Init` resets it in place without allocating. The stack, queue and deque are built that way.
+
 ## Stack
 
-LIFO container implemented on top of the doubly linked list.
+LIFO container on top of the doubly linked list; every operation is O(1).
 
 ```c
 Stack* stack = Stack_Create();
@@ -148,20 +163,22 @@ Stack* stack = Stack_Create();
 Stack_Push(stack, &a);
 Stack_Push(stack, &b);
 
+int top = *((int*)Stack_Peek(stack));  // b, still on the stack
 int value = *((int*)Stack_Pop(stack)); // b
 
 Stack_Delete(stack);
 ```
 
-Count elements:
+Count elements, or drop them all:
 
 ```c
 size_t count = Stack_Count(stack);
+Stack_Clear(stack);
 ```
 
 ## Queue
 
-FIFO container implemented on top of the doubly linked list.
+FIFO container on top of the doubly linked list; every operation is O(1).
 
 ```c
 Queue* queue = Queue_Create();
@@ -169,20 +186,22 @@ Queue* queue = Queue_Create();
 Queue_Enqueue(queue, &a);
 Queue_Enqueue(queue, &b);
 
+int next = *((int*)Queue_Peek(queue));     // a, still queued
 int value = *((int*)Queue_Dequeue(queue)); // a
 
 Queue_Delete(queue);
 ```
 
-Count elements:
+Count elements, or drop them all:
 
 ```c
 size_t count = Queue_Count(queue);
+Queue_Clear(queue);
 ```
 
 ## Deque
 
-Double-ended queue implemented on top of the doubly linked list.
+Double-ended queue on top of the doubly linked list; every operation is O(1).
 
 ```c
 Deque* deque = Deque_Create();
@@ -190,16 +209,19 @@ Deque* deque = Deque_Create();
 Deque_PushBack(deque, &b);
 Deque_PushFront(deque, &a);
 
-int first = *((int*)Deque_PopFront(deque)); // a
-int last = *((int*)Deque_PopBack(deque));   // b
+int front = *((int*)Deque_PeekFront(deque)); // a
+int back = *((int*)Deque_PeekBack(deque));   // b
+int first = *((int*)Deque_PopFront(deque));  // a
+int last = *((int*)Deque_PopBack(deque));    // b
 
 Deque_Delete(deque);
 ```
 
-Count elements:
+Count elements, or drop them all:
 
 ```c
 size_t count = Deque_Count(deque);
+Deque_Clear(deque);
 ```
 
 ## Dynamic Array
@@ -211,28 +233,33 @@ DynamicArray* array = DynamicArray_Create();
 
 DynamicArray_Add(array, &a);
 DynamicArray_Add(array, &b);
+DynamicArray_Insert(array, 1, &c);  // a, c, b
 
 int first = *((int*)DynamicArray_Get(array, 0));
-DynamicArray_Set(array, 1, &c);
+DynamicArray_Set(array, 1, &d);
 
 void* removed = DynamicArray_RemoveAt(array, 0);
+void* last = DynamicArray_RemoveLast(array);
 
 DynamicArray_Delete(array);
 ```
 
-Create with initial capacity:
+Create with initial capacity, or grow it ahead of a batch of adds:
 
 ```c
 DynamicArray* array = DynamicArray_CreateWithCapacity(16);
+DynamicArray_Reserve(array, 1000);
 ```
 
-Count and capacity:
+Iterate, count and capacity:
 
 ```c
+DynamicArray_Foreach(array, callback, context);
 size_t count = DynamicArray_Count(array);
 size_t capacity = DynamicArray_Capacity(array);
 ```
 
+`Add` is amortized O(1); `Insert` and `RemoveAt` move the tail of the array with `memmove`.
 
 ## Priority Queue
 
@@ -244,17 +271,7 @@ static int compare_ints(const void* left, const void* right)
     int a = *(const int*)left;
     int b = *(const int*)right;
 
-    if (a < b)
-    {
-        return -1;
-    }
-
-    if (a > b)
-    {
-        return 1;
-    }
-
-    return 0;
+    return (a > b) - (a < b);
 }
 
 PriorityQueue* queue = PriorityQueue_Create(compare_ints);
@@ -268,10 +285,11 @@ void* removed = PriorityQueue_Dequeue(queue);
 PriorityQueue_Delete(queue);
 ```
 
-Create with initial capacity:
+Create with initial capacity, or reserve:
 
 ```c
 PriorityQueue* queue = PriorityQueue_CreateWithCapacity(compare_ints, 16);
+PriorityQueue_Reserve(queue, 1000);
 ```
 
 Count and capacity:
@@ -281,9 +299,11 @@ size_t count = PriorityQueue_Count(queue);
 size_t capacity = PriorityQueue_Capacity(queue);
 ```
 
+`Enqueue` and `Dequeue` are O(log n), `Peek` is O(1).
+
 ## Hash Map
 
-A string-keyed hash map with separate chaining.
+A string-keyed hash map with separate chaining. Each entry remembers its hash, so lookups compare strings only on a hash match and growing the table does not rehash the keys.
 
 The map stores the key pointer as-is. It does not duplicate key strings. Use string literals, static strings, or keep dynamically allocated keys alive while they are stored in the map.
 
@@ -302,56 +322,47 @@ void* removed = HashMap_Remove(map, "answer");
 HashMap_Delete(map);
 ```
 
-Create with a specific bucket count:
+Create with a specific bucket count (the table doubles whenever it is more than 3/4 full):
 
 ```c
 HashMap* map = HashMap_CreateWithBucketCount(32);
 ```
 
-Count elements:
+Iterate (in no particular order) and count:
 
 ```c
+void print_entry(const char* key, void* value, void* context)
+{
+    printf("%s = %d\n", key, *(int*)value);
+}
+
+HashMap_Foreach(map, print_entry, nullptr);
 size_t count = HashMap_Count(map);
 ```
 
 ## Binary Search Tree
 
-A binary search tree over `void*` values. You provide a comparison function.
+An unbalanced binary search tree over `void*` values. You provide a comparison function. Inserting a value equal to a stored one replaces it.
 
 ```c
-static int compare_ints(const void* left, const void* right)
-{
-    int a = *(const int*)left;
-    int b = *(const int*)right;
-
-    if (a < b)
-    {
-        return -1;
-    }
-
-    if (a > b)
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
 BinarySearchTree* tree = BinarySearchTree_Create(compare_ints);
 
 BinarySearchTree_Insert(tree, &a);
 BinarySearchTree_Insert(tree, &b);
 
 void* found = BinarySearchTree_Find(tree, &a);
+bool has = BinarySearchTree_Contains(tree, &a);
+void* smallest = BinarySearchTree_Min(tree);
+void* largest = BinarySearchTree_Max(tree);
 void* removed = BinarySearchTree_Remove(tree, &b);
 
 BinarySearchTree_Delete(tree);
 ```
 
-In-order traversal:
+In-order traversal (ascending). The tree must not be modified from the callback:
 
 ```c
-BinarySearchTree_ForeachInOrder(tree, callback);
+BinarySearchTree_ForeachInOrder(tree, callback, context);
 ```
 
 Count elements:
@@ -360,13 +371,24 @@ Count elements:
 size_t count = BinarySearchTree_Count(tree);
 ```
 
+No operation recurses: traversal is a Morris walk and clearing rotates the tree flat as it frees it, so a degenerate (list-shaped) tree of a million nodes is slow to search but never overflows the stack.
+
+## Layout
+
+```
+capacity.h            internal: growth policy shared by the array-backed containers
+single-linked-list.*  double-linked-list.*
+stack.*  queue.*  deque.*       adapters over the doubly linked list
+dynamic-array.*  priority-queue.*
+hash-map.*  binary-search-tree.*
+Makefile              builds libplaincds.a
+```
+
 ## Notes
 
 The API is intentionally small and plain. It avoids ownership callbacks, custom allocators, macros, and type-specific code generation.
 
-The previous `InsertAt(node, value)` API was replaced with `InsertAfter(list, node, value)`. The list argument is required to preserve the `tail` invariant when inserting after the current tail.
-
-For production use, you would normally add more explicit ownership rules, better error reporting, more removal operations, and probably typed wrappers or macros. For a compact C data-structures library, this version keeps the old style but fixes the most obvious correctness issues.
+For production use, you would normally add more explicit ownership rules, better error reporting, and probably typed wrappers or macros.
 
 ## Support
 

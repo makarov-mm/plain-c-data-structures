@@ -1,58 +1,15 @@
 #include "dynamic-array.h"
 
-#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define DYNAMIC_ARRAY_DEFAULT_CAPACITY 4
+#include "capacity.h"
 
-static int DynamicArray_EnsureCapacity(DynamicArray* array, size_t required_capacity)
-{
-    if (!array)
-    {
-        return 0;
-    }
-
-    if (array->capacity >= required_capacity)
-    {
-        return 1;
-    }
-
-    size_t max_capacity = SIZE_MAX / sizeof(*array->items);
-
-    if (required_capacity > max_capacity)
-    {
-        return 0;
-    }
-
-    size_t new_capacity = array->capacity ? array->capacity : DYNAMIC_ARRAY_DEFAULT_CAPACITY;
-
-    while (new_capacity < required_capacity)
-    {
-        if (new_capacity > max_capacity / 2)
-        {
-            new_capacity = required_capacity;
-            break;
-        }
-
-        new_capacity *= 2;
-    }
-
-    void** new_items = realloc(array->items, new_capacity * sizeof(*new_items));
-
-    if (!new_items)
-    {
-        return 0;
-    }
-
-    array->items = new_items;
-    array->capacity = new_capacity;
-
-    return 1;
-}
+enum { kDefaultCapacity = 4 };
 
 DynamicArray* DynamicArray_Create(void)
 {
-    return DynamicArray_CreateWithCapacity(DYNAMIC_ARRAY_DEFAULT_CAPACITY);
+    return DynamicArray_CreateWithCapacity(kDefaultCapacity);
 }
 
 DynamicArray* DynamicArray_CreateWithCapacity(size_t capacity)
@@ -61,17 +18,15 @@ DynamicArray* DynamicArray_CreateWithCapacity(size_t capacity)
 
     if (!array)
     {
-        return NULL;
+        return nullptr;
     }
 
-    array->items = NULL;
-    array->count = 0;
-    array->capacity = 0;
+    *array = (DynamicArray){};
 
-    if (capacity && !DynamicArray_EnsureCapacity(array, capacity))
+    if (!DynamicArray_Reserve(array, capacity))
     {
         free(array);
-        return NULL;
+        return nullptr;
     }
 
     return array;
@@ -79,94 +34,107 @@ DynamicArray* DynamicArray_CreateWithCapacity(size_t capacity)
 
 void DynamicArray_Clear(DynamicArray* array)
 {
-    if (!array)
+    if (array)
     {
-        return;
+        array->count = 0;
     }
-
-    array->count = 0;
 }
 
 void DynamicArray_Delete(DynamicArray* array)
 {
-    if (!array)
+    if (array)
     {
-        return;
+        free(array->items);
+        free(array);
     }
-
-    free(array->items);
-    free(array);
 }
 
-int DynamicArray_Add(DynamicArray* array, void* value)
+bool DynamicArray_Reserve(DynamicArray* array, size_t capacity)
 {
-    if (!array || !DynamicArray_EnsureCapacity(array, array->count + 1))
+    return array && GrowPointerArray(&array->items, &array->capacity, capacity, kDefaultCapacity);
+}
+
+bool DynamicArray_Add(DynamicArray* array, void* value)
+{
+    if (!array || !DynamicArray_Reserve(array, array->count + 1))
     {
-        return 0;
+        return false;
     }
 
-    array->items[array->count] = value;
+    array->items[array->count++] = value;
+
+    return true;
+}
+
+bool DynamicArray_Insert(DynamicArray* array, size_t index, void* value)
+{
+    if (!array || index > array->count || !DynamicArray_Reserve(array, array->count + 1))
+    {
+        return false;
+    }
+
+    memmove(&array->items[index + 1], &array->items[index], (array->count - index) * sizeof(*array->items));
+    array->items[index] = value;
     ++array->count;
 
-    return 1;
+    return true;
 }
 
 void* DynamicArray_Get(const DynamicArray* array, size_t index)
 {
-    if (!array || index >= array->count)
-    {
-        return NULL;
-    }
-
-    return array->items[index];
+    return array && index < array->count ? array->items[index] : nullptr;
 }
 
-int DynamicArray_Set(DynamicArray* array, size_t index, void* value)
+bool DynamicArray_Set(DynamicArray* array, size_t index, void* value)
 {
     if (!array || index >= array->count)
     {
-        return 0;
+        return false;
     }
 
     array->items[index] = value;
-    return 1;
+
+    return true;
 }
 
 void* DynamicArray_RemoveAt(DynamicArray* array, size_t index)
 {
     if (!array || index >= array->count)
     {
-        return NULL;
+        return nullptr;
     }
 
     void* value = array->items[index];
-
-    for (size_t i = index + 1; i < array->count; ++i)
-    {
-        array->items[i - 1] = array->items[i];
-    }
-
     --array->count;
+    memmove(&array->items[index], &array->items[index + 1], (array->count - index) * sizeof(*array->items));
 
     return value;
 }
 
-size_t DynamicArray_Count(const DynamicArray* array)
+void* DynamicArray_RemoveLast(DynamicArray* array)
 {
-    if (!array)
+    return array && array->count ? array->items[--array->count] : nullptr;
+}
+
+void DynamicArray_Foreach(const DynamicArray* array, DynamicArrayCallback callback, void* context)
+{
+    if (!array || !callback)
     {
-        return 0;
+        return;
     }
 
-    return array->count;
+    for (size_t i = 0; i < array->count; ++i)
+    {
+        callback(array->items[i], context);
+    }
+}
+
+size_t DynamicArray_Count(const DynamicArray* array)
+{
+    return array ? array->count : 0;
 }
 
 size_t DynamicArray_Capacity(const DynamicArray* array)
 {
-    if (!array)
-    {
-        return 0;
-    }
-
-    return array->capacity;
+    return array ? array->capacity : 0;
 }

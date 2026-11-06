@@ -2,19 +2,62 @@
 
 #include <stdlib.h>
 
+// Links a fresh node between `prev` and `next` (either may be null).
+static DoubleLinkedListNode* LinkNode(DoubleLinkedList* list, DoubleLinkedListNode* prev, DoubleLinkedListNode* next,
+                                      void* value)
+{
+    DoubleLinkedListNode* node = malloc(sizeof(*node));
+
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    node->value = value;
+    node->prev = prev;
+    node->next = next;
+
+    if (prev)
+    {
+        prev->next = node;
+    }
+    else
+    {
+        list->head = node;
+    }
+
+    if (next)
+    {
+        next->prev = node;
+    }
+    else
+    {
+        list->tail = node;
+    }
+
+    ++list->count;
+
+    return node;
+}
+
 DoubleLinkedList* DoubleLinkedList_Create(void)
 {
     DoubleLinkedList* list = malloc(sizeof(*list));
 
-    if (!list)
+    if (list)
     {
-        return NULL;
+        DoubleLinkedList_Init(list);
     }
 
-    list->head = NULL;
-    list->tail = NULL;
-
     return list;
+}
+
+void DoubleLinkedList_Init(DoubleLinkedList* list)
+{
+    if (list)
+    {
+        *list = (DoubleLinkedList){};
+    }
 }
 
 void DoubleLinkedList_Clear(DoubleLinkedList* list)
@@ -33,217 +76,114 @@ void DoubleLinkedList_Clear(DoubleLinkedList* list)
         current = next;
     }
 
-    list->head = NULL;
-    list->tail = NULL;
+    *list = (DoubleLinkedList){};
 }
 
 void DoubleLinkedList_Delete(DoubleLinkedList* list)
 {
-    if (!list)
-    {
-        return;
-    }
-
     DoubleLinkedList_Clear(list);
     free(list);
 }
 
-void DoubleLinkedList_Foreach(DoubleLinkedList* list, void (*callback)(void* value))
-{
-    if (!list || !callback)
-    {
-        return;
-    }
-
-    DoubleLinkedListNode* current = list->head;
-
-    while (current)
-    {
-        callback(current->value);
-        current = current->next;
-    }
-}
-
-void DoubleLinkedList_ForeachReverse(DoubleLinkedList* list, void (*callback)(void* value))
-{
-    if (!list || !callback)
-    {
-        return;
-    }
-
-    DoubleLinkedListNode* current = list->tail;
-
-    while (current)
-    {
-        callback(current->value);
-        current = current->prev;
-    }
-}
-
 DoubleLinkedListNode* DoubleLinkedList_Add(DoubleLinkedList* list, void* value)
 {
-    if (!list)
-    {
-        return NULL;
-    }
-
-    DoubleLinkedListNode* node = malloc(sizeof(*node));
-
-    if (!node)
-    {
-        return NULL;
-    }
-
-    node->next = NULL;
-    node->prev = list->tail;
-    node->value = value;
-
-    if (!list->tail)
-    {
-        list->head = node;
-        list->tail = node;
-    }
-    else
-    {
-        list->tail->next = node;
-        list->tail = node;
-    }
-
-    return node;
+    return list ? LinkNode(list, list->tail, nullptr, value) : nullptr;
 }
 
 DoubleLinkedListNode* DoubleLinkedList_AddFirst(DoubleLinkedList* list, void* value)
 {
-    if (!list)
+    return list ? LinkNode(list, nullptr, list->head, value) : nullptr;
+}
+
+DoubleLinkedListNode* DoubleLinkedList_InsertAfter(DoubleLinkedList* list, DoubleLinkedListNode* target, void* value)
+{
+    return list && target ? LinkNode(list, target, target->next, value) : nullptr;
+}
+
+DoubleLinkedListNode* DoubleLinkedList_InsertBefore(DoubleLinkedList* list, DoubleLinkedListNode* target, void* value)
+{
+    return list && target ? LinkNode(list, target->prev, target, value) : nullptr;
+}
+
+void* DoubleLinkedList_RemoveNode(DoubleLinkedList* list, DoubleLinkedListNode* node)
+{
+    if (!list || !node)
     {
-        return NULL;
+        return nullptr;
     }
 
-    DoubleLinkedListNode* node = malloc(sizeof(*node));
-
-    if (!node)
+    if (node->prev)
     {
-        return NULL;
-    }
-
-    node->next = list->head;
-    node->prev = NULL;
-    node->value = value;
-
-    if (list->head)
-    {
-        list->head->prev = node;
+        node->prev->next = node->next;
     }
     else
     {
-        list->tail = node;
+        list->head = node->next;
     }
 
-    list->head = node;
+    if (node->next)
+    {
+        node->next->prev = node->prev;
+    }
+    else
+    {
+        list->tail = node->prev;
+    }
 
-    return node;
+    void* value = node->value;
+    free(node);
+    --list->count;
+
+    return value;
 }
 
 void* DoubleLinkedList_Remove(DoubleLinkedList* list)
 {
-    if (!list || !list->tail)
-    {
-        return NULL;
-    }
-
-    DoubleLinkedListNode* old_tail = list->tail;
-    void* value = old_tail->value;
-
-    list->tail = old_tail->prev;
-
-    if (list->tail)
-    {
-        list->tail->next = NULL;
-    }
-    else
-    {
-        list->head = NULL;
-    }
-
-    free(old_tail);
-    return value;
+    return list ? DoubleLinkedList_RemoveNode(list, list->tail) : nullptr;
 }
 
 void* DoubleLinkedList_RemoveFirst(DoubleLinkedList* list)
 {
-    if (!list || !list->head)
-    {
-        return NULL;
-    }
-
-    DoubleLinkedListNode* old_head = list->head;
-    void* value = old_head->value;
-
-    list->head = old_head->next;
-
-    if (list->head)
-    {
-        list->head->prev = NULL;
-    }
-    else
-    {
-        list->tail = NULL;
-    }
-
-    free(old_head);
-    return value;
+    return list ? DoubleLinkedList_RemoveNode(list, list->head) : nullptr;
 }
 
-DoubleLinkedListNode* DoubleLinkedList_InsertAfter(
-    DoubleLinkedList* list,
-    DoubleLinkedListNode* target,
-    void* value)
+void* DoubleLinkedList_Last(const DoubleLinkedList* list)
 {
-    if (!list || !target)
+    return list && list->tail ? list->tail->value : nullptr;
+}
+
+void* DoubleLinkedList_First(const DoubleLinkedList* list)
+{
+    return list && list->head ? list->head->value : nullptr;
+}
+
+void DoubleLinkedList_Foreach(const DoubleLinkedList* list, DoubleLinkedListCallback callback, void* context)
+{
+    if (!list || !callback)
     {
-        return NULL;
+        return;
     }
 
-    DoubleLinkedListNode* node = malloc(sizeof(*node));
-
-    if (!node)
+    for (DoubleLinkedListNode* node = list->head; node; node = node->next)
     {
-        return NULL;
+        callback(node->value, context);
+    }
+}
+
+void DoubleLinkedList_ForeachReverse(const DoubleLinkedList* list, DoubleLinkedListCallback callback, void* context)
+{
+    if (!list || !callback)
+    {
+        return;
     }
 
-    node->next = target->next;
-    node->prev = target;
-    node->value = value;
-
-    if (target->next)
+    for (DoubleLinkedListNode* node = list->tail; node; node = node->prev)
     {
-        target->next->prev = node;
+        callback(node->value, context);
     }
-    else
-    {
-        list->tail = node;
-    }
-
-    target->next = node;
-
-    return node;
 }
 
 size_t DoubleLinkedList_Count(const DoubleLinkedList* list)
 {
-    if (!list)
-    {
-        return 0;
-    }
-
-    size_t count = 0;
-    const DoubleLinkedListNode* current = list->head;
-
-    while (current)
-    {
-        ++count;
-        current = current->next;
-    }
-
-    return count;
+    return list ? list->count : 0;
 }

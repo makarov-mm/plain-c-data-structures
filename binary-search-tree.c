@@ -2,124 +2,60 @@
 
 #include <stdlib.h>
 
-static BinarySearchTreeNode* BinarySearchTree_CreateNode(void* value)
+// The link (root or a child pointer) that holds the node equal to `value`,
+// or the empty link where it would go.
+static BinarySearchTreeNode** FindLink(BinarySearchTree* tree, const void* value)
 {
-    BinarySearchTreeNode* node = malloc(sizeof(*node));
+    BinarySearchTreeNode** link = &tree->root;
 
-    if (!node)
+    while (*link)
     {
-        return NULL;
+        int comparison = tree->compare(value, (*link)->value);
+
+        if (comparison == 0)
+        {
+            break;
+        }
+
+        link = comparison < 0 ? &(*link)->left : &(*link)->right;
     }
 
-    node->value = value;
-    node->left = NULL;
-    node->right = NULL;
+    return link;
+}
+
+// The node equal to `value`, or nullptr.
+static BinarySearchTreeNode* FindNode(const BinarySearchTree* tree, const void* value)
+{
+    BinarySearchTreeNode* node = tree->root;
+
+    while (node)
+    {
+        int comparison = tree->compare(value, node->value);
+
+        if (comparison == 0)
+        {
+            break;
+        }
+
+        node = comparison < 0 ? node->left : node->right;
+    }
 
     return node;
-}
-
-static void BinarySearchTree_ClearNode(BinarySearchTreeNode* node)
-{
-    if (!node)
-    {
-        return;
-    }
-
-    BinarySearchTree_ClearNode(node->left);
-    BinarySearchTree_ClearNode(node->right);
-    free(node);
-}
-
-static void BinarySearchTree_ForeachNodeInOrder(
-    BinarySearchTreeNode* node,
-    void (*callback)(void* value))
-{
-    if (!node)
-    {
-        return;
-    }
-
-    BinarySearchTree_ForeachNodeInOrder(node->left, callback);
-    callback(node->value);
-    BinarySearchTree_ForeachNodeInOrder(node->right, callback);
-}
-
-static void* BinarySearchTree_RemoveNode(
-    BinarySearchTree* tree,
-    BinarySearchTreeNode** node_pointer,
-    const void* value)
-{
-    BinarySearchTreeNode* node = *node_pointer;
-
-    if (!node)
-    {
-        return NULL;
-    }
-
-    int comparison = tree->compare(value, node->value);
-
-    if (comparison < 0)
-    {
-        return BinarySearchTree_RemoveNode(tree, &node->left, value);
-    }
-
-    if (comparison > 0)
-    {
-        return BinarySearchTree_RemoveNode(tree, &node->right, value);
-    }
-
-    void* removed_value = node->value;
-
-    if (!node->left)
-    {
-        *node_pointer = node->right;
-        free(node);
-        --tree->count;
-        return removed_value;
-    }
-
-    if (!node->right)
-    {
-        *node_pointer = node->left;
-        free(node);
-        --tree->count;
-        return removed_value;
-    }
-
-    BinarySearchTreeNode** successor_pointer = &node->right;
-    BinarySearchTreeNode* successor = node->right;
-
-    while (successor->left)
-    {
-        successor_pointer = &successor->left;
-        successor = successor->left;
-    }
-
-    node->value = successor->value;
-    *successor_pointer = successor->right;
-    free(successor);
-    --tree->count;
-
-    return removed_value;
 }
 
 BinarySearchTree* BinarySearchTree_Create(BinarySearchTreeCompare compare)
 {
     if (!compare)
     {
-        return NULL;
+        return nullptr;
     }
 
     BinarySearchTree* tree = malloc(sizeof(*tree));
 
-    if (!tree)
+    if (tree)
     {
-        return NULL;
+        *tree = (BinarySearchTree){.compare = compare};
     }
-
-    tree->root = NULL;
-    tree->compare = compare;
-    tree->count = 0;
 
     return tree;
 }
@@ -131,18 +67,33 @@ void BinarySearchTree_Clear(BinarySearchTree* tree)
         return;
     }
 
-    BinarySearchTree_ClearNode(tree->root);
-    tree->root = NULL;
+    // Rotate left children up until the node has none, then free it and
+    // continue with the right child: every node is visited once, no stack.
+    BinarySearchTreeNode* node = tree->root;
+
+    while (node)
+    {
+        if (node->left)
+        {
+            BinarySearchTreeNode* left = node->left;
+            node->left = left->right;
+            left->right = node;
+            node = left;
+        }
+        else
+        {
+            BinarySearchTreeNode* right = node->right;
+            free(node);
+            node = right;
+        }
+    }
+
+    tree->root = nullptr;
     tree->count = 0;
 }
 
 void BinarySearchTree_Delete(BinarySearchTree* tree)
 {
-    if (!tree)
-    {
-        return;
-    }
-
     BinarySearchTree_Clear(tree);
     free(tree);
 }
@@ -151,100 +102,169 @@ BinarySearchTreeNode* BinarySearchTree_Insert(BinarySearchTree* tree, void* valu
 {
     if (!tree)
     {
-        return NULL;
+        return nullptr;
     }
 
-    BinarySearchTreeNode** current_pointer = &tree->root;
+    BinarySearchTreeNode** link = FindLink(tree, value);
 
-    while (*current_pointer)
+    if (*link)
     {
-        int comparison = tree->compare(value, (*current_pointer)->value);
-
-        if (comparison < 0)
-        {
-            current_pointer = &(*current_pointer)->left;
-        }
-        else if (comparison > 0)
-        {
-            current_pointer = &(*current_pointer)->right;
-        }
-        else
-        {
-            (*current_pointer)->value = value;
-            return *current_pointer;
-        }
+        (*link)->value = value;
+        return *link;
     }
 
-    *current_pointer = BinarySearchTree_CreateNode(value);
+    BinarySearchTreeNode* node = malloc(sizeof(*node));
 
-    if (!*current_pointer)
+    if (!node)
     {
-        return NULL;
+        return nullptr;
     }
 
+    *node = (BinarySearchTreeNode){.value = value};
+    *link = node;
     ++tree->count;
 
-    return *current_pointer;
+    return node;
 }
 
 void* BinarySearchTree_Find(const BinarySearchTree* tree, const void* value)
 {
     if (!tree)
     {
-        return NULL;
+        return nullptr;
     }
 
-    BinarySearchTreeNode* current = tree->root;
+    BinarySearchTreeNode* node = FindNode(tree, value);
 
-    while (current)
-    {
-        int comparison = tree->compare(value, current->value);
+    return node ? node->value : nullptr;
+}
 
-        if (comparison < 0)
-        {
-            current = current->left;
-        }
-        else if (comparison > 0)
-        {
-            current = current->right;
-        }
-        else
-        {
-            return current->value;
-        }
-    }
-
-    return NULL;
+bool BinarySearchTree_Contains(const BinarySearchTree* tree, const void* value)
+{
+    return tree && FindNode(tree, value) != nullptr;
 }
 
 void* BinarySearchTree_Remove(BinarySearchTree* tree, const void* value)
 {
     if (!tree)
     {
-        return NULL;
+        return nullptr;
     }
 
-    return BinarySearchTree_RemoveNode(tree, &tree->root, value);
+    BinarySearchTreeNode** link = FindLink(tree, value);
+    BinarySearchTreeNode* node = *link;
+
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    void* removed = node->value;
+
+    if (node->left && node->right)
+    {
+        // Two children: take over the in-order successor's value and unlink
+        // that node instead (it has no left child by definition).
+        BinarySearchTreeNode** successor_link = &node->right;
+
+        while ((*successor_link)->left)
+        {
+            successor_link = &(*successor_link)->left;
+        }
+
+        BinarySearchTreeNode* successor = *successor_link;
+        node->value = successor->value;
+        *successor_link = successor->right;
+        free(successor);
+    }
+    else
+    {
+        *link = node->left ? node->left : node->right;
+        free(node);
+    }
+
+    --tree->count;
+
+    return removed;
 }
 
-void BinarySearchTree_ForeachInOrder(
-    BinarySearchTree* tree,
-    void (*callback)(void* value))
+void* BinarySearchTree_Min(const BinarySearchTree* tree)
+{
+    if (!tree || !tree->root)
+    {
+        return nullptr;
+    }
+
+    BinarySearchTreeNode* node = tree->root;
+
+    while (node->left)
+    {
+        node = node->left;
+    }
+
+    return node->value;
+}
+
+void* BinarySearchTree_Max(const BinarySearchTree* tree)
+{
+    if (!tree || !tree->root)
+    {
+        return nullptr;
+    }
+
+    BinarySearchTreeNode* node = tree->root;
+
+    while (node->right)
+    {
+        node = node->right;
+    }
+
+    return node->value;
+}
+
+void BinarySearchTree_ForeachInOrder(BinarySearchTree* tree, BinarySearchTreeCallback callback, void* context)
 {
     if (!tree || !callback)
     {
         return;
     }
 
-    BinarySearchTree_ForeachNodeInOrder(tree->root, callback);
+    // Morris traversal: the right pointer of each left subtree's rightmost
+    // node temporarily threads back to its ancestor, which replaces the
+    // stack; every thread is removed again on the way back up.
+    BinarySearchTreeNode* node = tree->root;
+
+    while (node)
+    {
+        if (!node->left)
+        {
+            callback(node->value, context);
+            node = node->right;
+            continue;
+        }
+
+        BinarySearchTreeNode* predecessor = node->left;
+
+        while (predecessor->right && predecessor->right != node)
+        {
+            predecessor = predecessor->right;
+        }
+
+        if (!predecessor->right)
+        {
+            predecessor->right = node; // thread, then descend left
+            node = node->left;
+        }
+        else
+        {
+            predecessor->right = nullptr; // left subtree done
+            callback(node->value, context);
+            node = node->right;
+        }
+    }
 }
 
 size_t BinarySearchTree_Count(const BinarySearchTree* tree)
 {
-    if (!tree)
-    {
-        return 0;
-    }
-
-    return tree->count;
+    return tree ? tree->count : 0;
 }

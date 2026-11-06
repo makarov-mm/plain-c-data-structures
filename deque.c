@@ -6,79 +6,59 @@ Deque* Deque_Create(void)
 {
     Deque* deque = malloc(sizeof(*deque));
 
-    if (!deque)
+    if (deque)
     {
-        return NULL;
-    }
-
-    deque->list = DoubleLinkedList_Create();
-
-    if (!deque->list)
-    {
-        free(deque);
-        return NULL;
+        DoubleLinkedList_Init(&deque->list);
     }
 
     return deque;
 }
 
+void Deque_Clear(Deque* deque)
+{
+    if (deque)
+    {
+        DoubleLinkedList_Clear(&deque->list);
+    }
+}
+
 void Deque_Delete(Deque* deque)
 {
-    if (!deque)
-    {
-        return;
-    }
-
-    DoubleLinkedList_Delete(deque->list);
+    Deque_Clear(deque);
     free(deque);
 }
 
-void Deque_PushBack(Deque* deque, void* value)
+bool Deque_PushBack(Deque* deque, void* value)
 {
-    if (!deque)
-    {
-        return;
-    }
-
-    DoubleLinkedList_Add(deque->list, value);
+    return deque && DoubleLinkedList_Add(&deque->list, value) != nullptr;
 }
 
-void Deque_PushFront(Deque* deque, void* value)
+bool Deque_PushFront(Deque* deque, void* value)
 {
-    if (!deque)
-    {
-        return;
-    }
-
-    DoubleLinkedList_AddFirst(deque->list, value);
+    return deque && DoubleLinkedList_AddFirst(&deque->list, value) != nullptr;
 }
 
 void* Deque_PopBack(Deque* deque)
 {
-    if (!deque)
-    {
-        return NULL;
-    }
-
-    return DoubleLinkedList_Remove(deque->list);
+    return deque ? DoubleLinkedList_Remove(&deque->list) : nullptr;
 }
 
 void* Deque_PopFront(Deque* deque)
 {
-    if (!deque)
-    {
-        return NULL;
-    }
+    return deque ? DoubleLinkedList_RemoveFirst(&deque->list) : nullptr;
+}
 
-    return DoubleLinkedList_RemoveFirst(deque->list);
+void* Deque_PeekBack(const Deque* deque)
+{
+    return deque ? DoubleLinkedList_Last(&deque->list) : nullptr;
+}
+
+void* Deque_PeekFront(const Deque* deque)
+{
+    return deque ? DoubleLinkedList_First(&deque->list) : nullptr;
 }
 
 size_t Deque_Count(const Deque* deque)
 {
-    if (!deque)
-    {
-        return 0;
-    }
-
-    return DoubleLinkedList_Count(deque->list);
+    return deque ? deque->list.count : 0;
 }

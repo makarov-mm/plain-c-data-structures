@@ -1,33 +1,48 @@
-#ifndef DOUBLE_LINKED_LIST
-#define DOUBLE_LINKED_LIST
+#pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
-#include "double-linked-list-node.h"
 
-typedef struct DoubleLinkedList {
-    struct DoubleLinkedListNode* head;
-    struct DoubleLinkedListNode* tail;
+typedef struct DoubleLinkedListNode
+{
+    void* value;
+    struct DoubleLinkedListNode* next;
+    struct DoubleLinkedListNode* prev;
+} DoubleLinkedListNode;
+
+// Nodes are owned by the list; values are not. Every operation here is O(1)
+// except Clear and Foreach.
+typedef struct DoubleLinkedList
+{
+    DoubleLinkedListNode* head;
+    DoubleLinkedListNode* tail;
+    size_t count;
 } DoubleLinkedList;
 
-extern DoubleLinkedList* DoubleLinkedList_Create(void);
-extern void DoubleLinkedList_Clear(DoubleLinkedList* list);
-extern void DoubleLinkedList_Delete(DoubleLinkedList* list);
+typedef void (*DoubleLinkedListCallback)(void* value, void* context);
 
-extern void DoubleLinkedList_Foreach(DoubleLinkedList* list, void (*callback)(void* value));
-extern void DoubleLinkedList_ForeachReverse(DoubleLinkedList* list, void (*callback)(void* value));
+[[nodiscard]] DoubleLinkedList* DoubleLinkedList_Create(void);
+// Resets a list that lives inside another object (no allocation).
+void DoubleLinkedList_Init(DoubleLinkedList* list);
+void DoubleLinkedList_Clear(DoubleLinkedList* list);
+void DoubleLinkedList_Delete(DoubleLinkedList* list);
 
-extern DoubleLinkedListNode* DoubleLinkedList_Add(DoubleLinkedList* list, void* value);
-extern DoubleLinkedListNode* DoubleLinkedList_AddFirst(DoubleLinkedList* list, void* value);
+DoubleLinkedListNode* DoubleLinkedList_Add(DoubleLinkedList* list, void* value);
+DoubleLinkedListNode* DoubleLinkedList_AddFirst(DoubleLinkedList* list, void* value);
+DoubleLinkedListNode* DoubleLinkedList_InsertAfter(DoubleLinkedList* list, DoubleLinkedListNode* target, void* value);
+DoubleLinkedListNode* DoubleLinkedList_InsertBefore(DoubleLinkedList* list, DoubleLinkedListNode* target, void* value);
 
-extern void* DoubleLinkedList_Remove(DoubleLinkedList* list);
-extern void* DoubleLinkedList_RemoveFirst(DoubleLinkedList* list);
+// Remove the tail / head and return its value (nullptr when empty).
+void* DoubleLinkedList_Remove(DoubleLinkedList* list);
+void* DoubleLinkedList_RemoveFirst(DoubleLinkedList* list);
+// Unlinks and frees any node of this list, returning its value.
+void* DoubleLinkedList_RemoveNode(DoubleLinkedList* list, DoubleLinkedListNode* node);
 
-extern DoubleLinkedListNode* DoubleLinkedList_InsertAfter(
-    DoubleLinkedList* list,
-    DoubleLinkedListNode* target,
-    void* value
-);
+// Value at the tail / head without removing it (nullptr when empty).
+void* DoubleLinkedList_Last(const DoubleLinkedList* list);
+void* DoubleLinkedList_First(const DoubleLinkedList* list);
 
-extern size_t DoubleLinkedList_Count(const DoubleLinkedList* list);
+void DoubleLinkedList_Foreach(const DoubleLinkedList* list, DoubleLinkedListCallback callback, void* context);
+void DoubleLinkedList_ForeachReverse(const DoubleLinkedList* list, DoubleLinkedListCallback callback, void* context);
 
-#endif
+size_t DoubleLinkedList_Count(const DoubleLinkedList* list);

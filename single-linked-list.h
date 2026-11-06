@@ -1,29 +1,41 @@
-#ifndef SINGLE_LINKED_LIST
-#define SINGLE_LINKED_LIST
+#pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
-#include "single-linked-list-node.h"
 
-typedef struct SingleLinkedList {
-    struct SingleLinkedListNode* head;
-    struct SingleLinkedListNode* tail;
+typedef struct SingleLinkedListNode
+{
+    void* value;
+    struct SingleLinkedListNode* next;
+} SingleLinkedListNode;
+
+// Nodes are owned by the list; values are not.
+typedef struct SingleLinkedList
+{
+    SingleLinkedListNode* head;
+    SingleLinkedListNode* tail;
+    size_t count;
 } SingleLinkedList;
 
-extern SingleLinkedList* SingleLinkedList_Create(void);
-extern void SingleLinkedList_Clear(SingleLinkedList* list);
-extern void SingleLinkedList_Delete(SingleLinkedList* list);
+typedef void (*SingleLinkedListCallback)(void* value, void* context);
 
-extern void SingleLinkedList_Foreach(SingleLinkedList* list, void (*callback)(void* value));
+[[nodiscard]] SingleLinkedList* SingleLinkedList_Create(void);
+void SingleLinkedList_Clear(SingleLinkedList* list);
+void SingleLinkedList_Delete(SingleLinkedList* list);
 
-extern SingleLinkedListNode* SingleLinkedList_Add(SingleLinkedList* list, void* value);
-extern void* SingleLinkedList_Remove(SingleLinkedList* list);
+// Appends at the tail, O(1).
+SingleLinkedListNode* SingleLinkedList_Add(SingleLinkedList* list, void* value);
+// Prepends at the head, O(1).
+SingleLinkedListNode* SingleLinkedList_AddFirst(SingleLinkedList* list, void* value);
+// Inserts after a node of this list, O(1).
+SingleLinkedListNode* SingleLinkedList_InsertAfter(SingleLinkedList* list, SingleLinkedListNode* target, void* value);
 
-extern SingleLinkedListNode* SingleLinkedList_InsertAfter(
-    SingleLinkedList* list,
-    SingleLinkedListNode* target,
-    void* value
-);
+// Removes the tail and returns its value (nullptr when empty). O(n): a
+// singly linked list has to walk to the node before the tail.
+void* SingleLinkedList_Remove(SingleLinkedList* list);
+// Removes the head and returns its value (nullptr when empty), O(1).
+void* SingleLinkedList_RemoveFirst(SingleLinkedList* list);
 
-extern size_t SingleLinkedList_Count(const SingleLinkedList* list);
+void SingleLinkedList_Foreach(const SingleLinkedList* list, SingleLinkedListCallback callback, void* context);
 
-#endif
+size_t SingleLinkedList_Count(const SingleLinkedList* list);

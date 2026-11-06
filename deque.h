@@ -1,22 +1,29 @@
-#ifndef DEQUE
-#define DEQUE
+#pragma once
 
 #include <stddef.h>
+
 #include "double-linked-list.h"
 
-typedef struct Deque {
-    struct DoubleLinkedList* list;
+// Double-ended queue over a doubly linked list; every operation is O(1).
+typedef struct Deque
+{
+    DoubleLinkedList list;
 } Deque;
 
-extern Deque* Deque_Create(void);
-extern void Deque_Delete(Deque* deque);
+[[nodiscard]] Deque* Deque_Create(void);
+void Deque_Clear(Deque* deque);
+void Deque_Delete(Deque* deque);
 
-extern void Deque_PushBack(Deque* deque, void* value);
-extern void Deque_PushFront(Deque* deque, void* value);
+// Return false if the node could not be allocated.
+bool Deque_PushBack(Deque* deque, void* value);
+bool Deque_PushFront(Deque* deque, void* value);
 
-extern void* Deque_PopBack(Deque* deque);
-extern void* Deque_PopFront(Deque* deque);
+// Remove and return a value from either end (nullptr when empty).
+void* Deque_PopBack(Deque* deque);
+void* Deque_PopFront(Deque* deque);
 
-extern size_t Deque_Count(const Deque* deque);
+// The value at either end without removing it (nullptr when empty).
+void* Deque_PeekBack(const Deque* deque);
+void* Deque_PeekFront(const Deque* deque);
 
-#endif
+size_t Deque_Count(const Deque* deque);

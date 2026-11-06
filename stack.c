@@ -6,59 +6,44 @@ Stack* Stack_Create(void)
 {
     Stack* stack = malloc(sizeof(*stack));
 
-    if (!stack)
+    if (stack)
     {
-        return NULL;
-    }
-
-    stack->list = DoubleLinkedList_Create();
-
-    if (!stack->list)
-    {
-        free(stack);
-        return NULL;
+        DoubleLinkedList_Init(&stack->list);
     }
 
     return stack;
 }
 
+void Stack_Clear(Stack* stack)
+{
+    if (stack)
+    {
+        DoubleLinkedList_Clear(&stack->list);
+    }
+}
+
 void Stack_Delete(Stack* stack)
 {
-    if (!stack)
-    {
-        return;
-    }
-
-    DoubleLinkedList_Delete(stack->list);
+    Stack_Clear(stack);
     free(stack);
 }
 
-void Stack_Push(Stack* stack, void* value)
+bool Stack_Push(Stack* stack, void* value)
 {
-    if (!stack)
-    {
-        return;
-    }
-
-    DoubleLinkedList_Add(stack->list, value);
+    return stack && DoubleLinkedList_Add(&stack->list, value) != nullptr;
 }
 
 void* Stack_Pop(Stack* stack)
 {
-    if (!stack)
-    {
-        return NULL;
-    }
+    return stack ? DoubleLinkedList_Remove(&stack->list) : nullptr;
+}
 
-    return DoubleLinkedList_Remove(stack->list);
+void* Stack_Peek(const Stack* stack)
+{
+    return stack ? DoubleLinkedList_Last(&stack->list) : nullptr;
 }
 
 size_t Stack_Count(const Stack* stack)
 {
-    if (!stack)
-    {
-        return 0;
-    }
-
-    return DoubleLinkedList_Count(stack->list);
+    return stack ? stack->list.count : 0;
 }

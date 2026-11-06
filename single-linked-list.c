@@ -2,17 +2,29 @@
 
 #include <stdlib.h>
 
+static SingleLinkedListNode* CreateNode(void* value, SingleLinkedListNode* next)
+{
+    SingleLinkedListNode* node = malloc(sizeof(*node));
+
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    node->value = value;
+    node->next = next;
+
+    return node;
+}
+
 SingleLinkedList* SingleLinkedList_Create(void)
 {
     SingleLinkedList* list = malloc(sizeof(*list));
 
-    if (!list)
+    if (list)
     {
-        return NULL;
+        *list = (SingleLinkedList){};
     }
-
-    list->head = NULL;
-    list->tail = NULL;
 
     return list;
 }
@@ -33,64 +45,92 @@ void SingleLinkedList_Clear(SingleLinkedList* list)
         current = next;
     }
 
-    list->head = NULL;
-    list->tail = NULL;
+    *list = (SingleLinkedList){};
 }
 
 void SingleLinkedList_Delete(SingleLinkedList* list)
 {
-    if (!list)
-    {
-        return;
-    }
-
     SingleLinkedList_Clear(list);
     free(list);
-}
-
-void SingleLinkedList_Foreach(SingleLinkedList* list, void (*callback)(void* value))
-{
-    if (!list || !callback)
-    {
-        return;
-    }
-
-    SingleLinkedListNode* current = list->head;
-
-    while (current)
-    {
-        callback(current->value);
-        current = current->next;
-    }
 }
 
 SingleLinkedListNode* SingleLinkedList_Add(SingleLinkedList* list, void* value)
 {
     if (!list)
     {
-        return NULL;
+        return nullptr;
     }
 
-    SingleLinkedListNode* node = malloc(sizeof(*node));
+    SingleLinkedListNode* node = CreateNode(value, nullptr);
 
     if (!node)
     {
-        return NULL;
+        return nullptr;
     }
 
-    node->next = NULL;
-    node->value = value;
-
-    if (!list->tail)
+    if (list->tail)
     {
-        list->head = node;
-        list->tail = node;
+        list->tail->next = node;
     }
     else
     {
-        list->tail->next = node;
+        list->head = node;
+    }
+
+    list->tail = node;
+    ++list->count;
+
+    return node;
+}
+
+SingleLinkedListNode* SingleLinkedList_AddFirst(SingleLinkedList* list, void* value)
+{
+    if (!list)
+    {
+        return nullptr;
+    }
+
+    SingleLinkedListNode* node = CreateNode(value, list->head);
+
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    list->head = node;
+
+    if (!list->tail)
+    {
         list->tail = node;
     }
+
+    ++list->count;
+
+    return node;
+}
+
+SingleLinkedListNode* SingleLinkedList_InsertAfter(SingleLinkedList* list, SingleLinkedListNode* target, void* value)
+{
+    if (!list || !target)
+    {
+        return nullptr;
+    }
+
+    SingleLinkedListNode* node = CreateNode(value, target->next);
+
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    target->next = node;
+
+    if (list->tail == target)
+    {
+        list->tail = node;
+    }
+
+    ++list->count;
 
     return node;
 }
@@ -99,78 +139,73 @@ void* SingleLinkedList_Remove(SingleLinkedList* list)
 {
     if (!list || !list->tail)
     {
-        return NULL;
+        return nullptr;
     }
 
     SingleLinkedListNode* old_tail = list->tail;
     void* value = old_tail->value;
 
-    if (list->head == list->tail)
+    if (list->head == old_tail)
     {
-        list->head = NULL;
-        list->tail = NULL;
+        list->head = nullptr;
+        list->tail = nullptr;
     }
     else
     {
-        SingleLinkedListNode* current = list->head;
+        SingleLinkedListNode* before_tail = list->head;
 
-        while (current->next != list->tail)
+        while (before_tail->next != old_tail)
         {
-            current = current->next;
+            before_tail = before_tail->next;
         }
 
-        current->next = NULL;
-        list->tail = current;
+        before_tail->next = nullptr;
+        list->tail = before_tail;
     }
 
     free(old_tail);
+    --list->count;
+
     return value;
 }
 
-SingleLinkedListNode* SingleLinkedList_InsertAfter(
-    SingleLinkedList* list,
-    SingleLinkedListNode* target,
-    void* value)
+void* SingleLinkedList_RemoveFirst(SingleLinkedList* list)
 {
-    if (!list || !target)
+    if (!list || !list->head)
     {
-        return NULL;
+        return nullptr;
     }
 
-    SingleLinkedListNode* node = malloc(sizeof(*node));
+    SingleLinkedListNode* old_head = list->head;
+    void* value = old_head->value;
 
-    if (!node)
+    list->head = old_head->next;
+
+    if (!list->head)
     {
-        return NULL;
+        list->tail = nullptr;
     }
 
-    node->next = target->next;
-    node->value = value;
-    target->next = node;
+    free(old_head);
+    --list->count;
 
-    if (list->tail == target)
+    return value;
+}
+
+void SingleLinkedList_Foreach(const SingleLinkedList* list, SingleLinkedListCallback callback, void* context)
+{
+    if (!list || !callback)
     {
-        list->tail = node;
+        return;
     }
 
-    return node;
+    for (SingleLinkedListNode* node = list->head; node; node = node->next)
+    {
+        callback(node->value, context);
+    }
 }
 
 size_t SingleLinkedList_Count(const SingleLinkedList* list)
 {
-    if (!list)
-    {
-        return 0;
-    }
-
-    size_t count = 0;
-    const SingleLinkedListNode* current = list->head;
-
-    while (current)
-    {
-        ++count;
-        current = current->next;
-    }
-
-    return count;
+    return list ? list->count : 0;
 }

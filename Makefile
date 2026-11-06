@@ -1,5 +1,8 @@
 CC ?= gcc
-CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic
+AR ?= ar
+CFLAGS ?= -std=c23 -O2 -Wall -Wextra -Wpedantic
+
+LIB = libplaincds.a
 
 SOURCES = \
     single-linked-list.c \
@@ -14,15 +17,15 @@ SOURCES = \
 
 OBJECTS = $(SOURCES:.c=.o)
 
-.PHONY: all clean test
+.PHONY: all clean
 
-all: $(OBJECTS)
+all: $(LIB)
 
-test: tests/test
-	./tests/test
+$(LIB): $(OBJECTS)
+	$(AR) rcs $@ $^
 
-tests/test: tests/test.c $(SOURCES) *.h
-	$(CC) $(CFLAGS) tests/test.c $(SOURCES) -o tests/test
+%.o: %.c $(wildcard *.h)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) tests/test tests/test_sanitize
+	rm -f $(OBJECTS) $(LIB)
